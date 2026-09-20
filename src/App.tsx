@@ -205,22 +205,34 @@ export default function App() {
 }
 
 function AuthScreen() {
+  const [step, setStep] = useState("email"); // "email" | "code"
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
 
-  const sendLink = async () => {
+  const sendCode = async () => {
     if (!email.trim() || sending) return;
     setSending(true);
     setError("");
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: window.location.href },
-    });
+    const { error } = await supabase.auth.signInWithOtp({ email: email.trim() });
     setSending(false);
     if (error) setError(error.message);
-    else setSent(true);
+    else setStep("code");
+  };
+
+  const verifyCode = async () => {
+    if (!code.trim() || sending) return;
+    setSending(true);
+    setError("");
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: code.trim(),
+      type: "email",
+    });
+    setSending(false);
+    // On success, the auth listener in App() picks up the session automatically.
+    if (error) setError(error.message);
   };
 
   return (
@@ -229,19 +241,33 @@ function AuthScreen() {
       <div className="auth-screen">
         <Dumbbell size={32} color="var(--accent)" />
         <h1 className="h1">IronLog</h1>
-        <p className="sub">Sign in to keep your workouts saved to your account.</p>
-        {sent ? (
-          <div className="auth-sent">Check <b>{email}</b> for a sign-in link, then come back here.</div>
-        ) : (
+        {step === "email" ? (
           <>
+            <p className="sub">Sign in to keep your workouts saved to your account.</p>
             <input
               className="set-input wide" placeholder="you@email.com" value={email}
               onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendLink()}
+              onKeyDown={(e) => e.key === "Enter" && sendCode()}
             />
             {error && <div className="auth-error">{error}</div>}
-            <button className="btn-finish wide" onClick={sendLink} disabled={sending}>
-              {sending ? "Sending…" : "Send magic link"}
+            <button className="btn-finish wide" onClick={sendCode} disabled={sending}>
+              {sending ? "Sending…" : "Send code"}
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="sub">Enter the code sent to <b>{email}</b>.</p>
+            <input
+              className="set-input wide" inputMode="numeric" placeholder="123456" value={code} autoFocus
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && verifyCode()}
+            />
+            {error && <div className="auth-error">{error}</div>}
+            <button className="btn-finish wide" onClick={verifyCode} disabled={sending}>
+              {sending ? "Verifying…" : "Verify & sign in"}
+            </button>
+            <button className="ghost-btn" style={{ marginTop: 4 }} onClick={() => { setStep("email"); setCode(""); setError(""); }}>
+              Use a different email
             </button>
           </>
         )}
